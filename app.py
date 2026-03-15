@@ -2,6 +2,7 @@
 
 import json
 import streamlit as st
+import streamlit.components.v1 as components
 import chromadb
 
 import config
@@ -123,19 +124,6 @@ input:focus, textarea:focus {
     border: 1px solid rgba(0,180,255,0.1) !important;
     border-radius: 8px !important;
 }
-[data-testid="stExpander"] summary {
-    color: #c0c8d4 !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 0.9rem !important;
-    gap: 0.5rem !important;
-}
-[data-testid="stExpander"] summary span {
-    color: #c0c8d4 !important;
-}
-[data-testid="stExpander"] summary svg {
-    color: #00d4ff !important;
-    flex-shrink: 0 !important;
-}
 
 /* Divider */
 hr {
@@ -157,12 +145,32 @@ hr {
 
 /* Hide Streamlit branding */
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+
+/* Particle iframe — full screen behind content */
+iframe[title="streamlit_components.v1.html"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+    border: none !important;
+}
+
+/* Ensure main content sits above the particle iframe */
+[data-testid="stAppViewContainer"] > section > div {
+    position: relative;
+    z-index: 1;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # ── Particle background ─────────────────────────────────────────────────────
+# components.html renders an iframe where JS actually executes.
+# The CSS above repositions the iframe to cover the full viewport.
 
-st.markdown(PARTICLE_HTML, unsafe_allow_html=True)
+components.html(PARTICLE_HTML, height=1)
 
 # ── Auth gate ────────────────────────────────────────────────────────────────
 
@@ -232,12 +240,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Corpus report listing — button toggle instead of expander
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
-    with st.expander(
-        f"Corpus: {len(_meta_list)} report{'s' if len(_meta_list) != 1 else ''} indexed",
-        expanded=False,
+    report_count = len(_meta_list)
+    if st.button(
+        f"{'▾' if st.session_state.get('show_corpus') else '▸'} "
+        f"Corpus: {report_count} report{'s' if report_count != 1 else ''} indexed",
+        use_container_width=True,
     ):
+        st.session_state["show_corpus"] = not st.session_state.get("show_corpus", False)
+        st.rerun()
+
+    if st.session_state.get("show_corpus"):
         for rpt in _meta_list:
             tier = rpt.get("trust_tier", 3)
             if tier == 1:
@@ -262,6 +277,7 @@ with col2:
                 unsafe_allow_html=True,
             )
 
+# Query input
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
     question = st.text_input(
@@ -286,27 +302,31 @@ with col2:
         st.markdown(result["answer"])
 
         if result["sources"]:
-            with st.expander("Sources Used", expanded=True):
-                for src in result["sources"]:
-                    tier = src["trust_tier"]
-                    if tier == 1:
-                        color, label = "#00e676", "TIER 1 — VERIFIED"
-                    elif tier == 2:
-                        color, label = "#ffab00", "TIER 2 — CREDIBLE"
-                    else:
-                        color, label = "#ff1744", "TIER 3 — CAVEAT"
+            st.markdown(
+                "<p style='color:#556;font-size:0.8rem;margin-top:1.5rem;"
+                "text-transform:uppercase;letter-spacing:1px'>Sources Used</p>",
+                unsafe_allow_html=True,
+            )
+            for src in result["sources"]:
+                tier = src["trust_tier"]
+                if tier == 1:
+                    color, label = "#00e676", "TIER 1 — VERIFIED"
+                elif tier == 2:
+                    color, label = "#ffab00", "TIER 2 — CREDIBLE"
+                else:
+                    color, label = "#ff1744", "TIER 3 — CAVEAT"
 
-                    tags = ", ".join(src["topic_tags"]) if src["topic_tags"] else "—"
-                    st.markdown(
-                        f"<div style='padding:10px 14px;margin:8px 0;"
-                        f"border-left:3px solid {color};"
-                        f"background:rgba(255,255,255,0.02);border-radius:4px'>"
-                        f"<strong style='color:#e0e6ed'>{src['filename']}</strong>"
-                        f" &nbsp;<span style='font-size:0.7rem;padding:2px 8px;"
-                        f"background:{color}20;color:{color};border-radius:10px;"
-                        f"font-weight:600;letter-spacing:0.5px'>{label}</span><br/>"
-                        f"<span style='color:#667;font-size:0.8rem'>"
-                        f"{src['provider']} · {src['published']} · {tags}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
+                tags = ", ".join(src["topic_tags"]) if src["topic_tags"] else "—"
+                st.markdown(
+                    f"<div style='padding:10px 14px;margin:8px 0;"
+                    f"border-left:3px solid {color};"
+                    f"background:rgba(255,255,255,0.02);border-radius:4px'>"
+                    f"<strong style='color:#e0e6ed'>{src['filename']}</strong>"
+                    f" &nbsp;<span style='font-size:0.7rem;padding:2px 8px;"
+                    f"background:{color}20;color:{color};border-radius:10px;"
+                    f"font-weight:600;letter-spacing:0.5px'>{label}</span><br/>"
+                    f"<span style='color:#667;font-size:0.8rem'>"
+                    f"{src['provider']} · {src['published']} · {tags}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
