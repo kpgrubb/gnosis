@@ -1,5 +1,6 @@
 """Streamlit UI for GNOSIS research intelligence system."""
 
+import json
 import streamlit as st
 import chromadb
 
@@ -205,12 +206,48 @@ with st.sidebar:
 
 # ── Main area ────────────────────────────────────────────────────────────────
 
+# Load corpus metadata for the report count / listing
+_meta_list = []
+if config.METADATA_PATH.exists():
+    with open(config.METADATA_PATH, "r", encoding="utf-8") as _mf:
+        _meta_list = json.load(_mf)
+
 st.markdown(
     "<h1 style='text-align:center;font-size:2.5rem;margin-top:2rem'>GNOSIS</h1>"
-    "<p style='text-align:center;color:#556;font-size:0.95rem;margin-bottom:2rem'>"
+    "<p style='text-align:center;color:#556;font-size:0.95rem;margin-bottom:0.8rem'>"
     "Ask a question. Get cited answers from your research corpus.</p>",
     unsafe_allow_html=True,
 )
+
+col1, col2, col3 = st.columns([1, 3, 1])
+with col2:
+    with st.expander(
+        f"Corpus: {len(_meta_list)} report{'s' if len(_meta_list) != 1 else ''} indexed",
+        expanded=False,
+    ):
+        for rpt in _meta_list:
+            tier = rpt.get("trust_tier", 3)
+            if tier == 1:
+                color, badge = "#00e676", "TIER 1"
+            elif tier == 2:
+                color, badge = "#ffab00", "TIER 2"
+            else:
+                color, badge = "#ff1744", "TIER 3"
+            tags = ", ".join(rpt.get("topic_tags", []))
+            st.markdown(
+                f"<div style='padding:8px 12px;margin:6px 0;"
+                f"border-left:3px solid {color};"
+                f"background:rgba(255,255,255,0.02);border-radius:4px'>"
+                f"<strong style='color:#e0e6ed'>{rpt['filename']}</strong>"
+                f" &nbsp;<span style='font-size:0.65rem;padding:2px 6px;"
+                f"background:{color}20;color:{color};border-radius:10px;"
+                f"font-weight:600'>{badge}</span><br/>"
+                f"<span style='color:#667;font-size:0.78rem'>"
+                f"{rpt.get('provider','—')} · {rpt.get('published','—')}"
+                f"{(' · ' + tags) if tags else ''}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
