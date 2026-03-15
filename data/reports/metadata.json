@@ -1,0 +1,16 @@
+[
+  {
+    "filename": "mckinsey-global-banking-2024.pdf",
+    "provider": "McKinsey Global Institute",
+    "trust_tier": 1,
+    "published": "2024-Q3",
+    "topic_tags": ["banking", "digital transformation"]
+  },
+  {
+    "filename": "deloitte-tech-trends-2025.pdf",
+    "provider": "Deloitte Insights",
+    "trust_tier": 2,
+    "published": "2025-Q1",
+    "topic_tags": ["technology", "enterprise AI"]
+  }
+]
