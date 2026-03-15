@@ -123,6 +123,19 @@ input:focus, textarea:focus {
     border: 1px solid rgba(0,180,255,0.1) !important;
     border-radius: 8px !important;
 }
+[data-testid="stExpander"] summary {
+    color: #c0c8d4 !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.9rem !important;
+    gap: 0.5rem !important;
+}
+[data-testid="stExpander"] summary span {
+    color: #c0c8d4 !important;
+}
+[data-testid="stExpander"] summary svg {
+    color: #00d4ff !important;
+    flex-shrink: 0 !important;
+}
 
 /* Divider */
 hr {
