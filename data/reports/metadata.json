@@ -1,16 +1,51 @@
 [
   {
-    "filename": "mckinsey-global-banking-2024.pdf",
-    "provider": "McKinsey Global Institute",
+    "filename": "BeigeBook_20260304.pdf",
+    "provider": "Federal Reserve System",
     "trust_tier": 1,
-    "published": "2024-Q3",
-    "topic_tags": ["banking", "digital transformation"]
+    "published": "2026-Q1",
+    "topic_tags": ["economic conditions", "regional economic analysis", "federal reserve policy"]
   },
   {
-    "filename": "deloitte-tech-trends-2025.pdf",
+    "filename": "CW_Earning-Trust-with-Every-Interaction.pdf",
+    "provider": "Commonwealth",
+    "trust_tier": 2,
+    "published": "2025-Q4",
+    "topic_tags": ["generative AI", "conversational AI", "consumer trust", "credit building"]
+  },
+  {
+    "filename": "cfpb_2024-financial-literacy-annual-report_2025-12.pdf",
+    "provider": "Consumer Financial Protection Bureau (CFPB)",
+    "trust_tier": 1,
+    "published": "2025-Q4",
+    "topic_tags": ["financial literacy", "youth financial education", "consumer protection"]
+  },
+  {
+    "filename": "deloitte.pdf",
     "provider": "Deloitte Insights",
     "trust_tier": 2,
     "published": "2025-Q1",
-    "topic_tags": ["technology", "enterprise AI"]
+    "topic_tags": ["banking industry", "financial services", "strategy"]
+  },
+  {
+    "filename": "gbar-2024-attaining-escape-velocity-f.pdf",
+    "provider": "McKinsey & Company",
+    "trust_tier": 2,
+    "published": "2024-Q4",
+    "topic_tags": ["banking", "profitability", "operational execution"]
+  },
+  {
+    "filename": "nextforfinancial services.pdf",
+    "provider": "Oliver Wyman",
+    "trust_tier": 2,
+    "published": "2025-Q1",
+    "topic_tags": ["financial services", "artificial intelligence", "digital transformation"]
+  },
+  {
+    "filename": "why-precision-not-heft-defines-the-future-of-banking-vf.pdf",
+    "provider": "McKinsey & Company",
+    "trust_tier": 2,
+    "published": "2025-Q4",
+    "topic_tags": ["banking strategy", "agentic AI", "capital efficiency", "customer personalization"]
   }
 ]
