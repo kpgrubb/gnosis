@@ -1,7 +1,7 @@
 """Streamlit UI for GNOSIS research intelligence system."""
 
+import os
 import streamlit as st
-import streamlit.components.v1 as components
 import chromadb
 
 import config
@@ -149,7 +149,7 @@ hr {
 
 # ── Particle background ─────────────────────────────────────────────────────
 
-components.html(PARTICLE_HTML, height=0)
+st.markdown(PARTICLE_HTML, unsafe_allow_html=True)
 
 # ── Auth gate ────────────────────────────────────────────────────────────────
 
@@ -191,6 +191,24 @@ with st.sidebar:
         st.metric("Total chunks", 0)
 
     st.divider()
+
+    # File uploader
+    uploaded = st.file_uploader(
+        "Upload PDFs",
+        type=["pdf"],
+        accept_multiple_files=True,
+        label_visibility="collapsed",
+    )
+    if uploaded:
+        os.makedirs(config.DATA_DIR, exist_ok=True)
+        saved = 0
+        for f in uploaded:
+            dest = config.DATA_DIR / f.name
+            if not dest.exists():
+                dest.write_bytes(f.getvalue())
+                saved += 1
+        if saved:
+            st.success(f"Saved {saved} new PDF(s). Hit ingest to process them.")
 
     if st.button("⟳ Ingest new reports", use_container_width=True):
         with st.spinner("Scanning and embedding PDFs..."):
