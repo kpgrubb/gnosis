@@ -1,6 +1,5 @@
 """Streamlit UI for GNOSIS research intelligence system."""
 
-import os
 import streamlit as st
 import chromadb
 
@@ -155,6 +154,13 @@ st.markdown(PARTICLE_HTML, unsafe_allow_html=True)
 
 require_auth()
 
+# ── Auto-ingest on first load ────────────────────────────────────────────────
+
+if "ingested" not in st.session_state:
+    with st.spinner("Building corpus index..."):
+        ingest(verbose=False)
+    st.session_state["ingested"] = True
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -189,41 +195,6 @@ with st.sidebar:
     except Exception:
         st.metric("Documents in corpus", 0)
         st.metric("Total chunks", 0)
-
-    st.divider()
-
-    # File uploader
-    uploaded = st.file_uploader(
-        "Upload PDFs",
-        type=["pdf"],
-        accept_multiple_files=True,
-        label_visibility="collapsed",
-    )
-    if uploaded:
-        os.makedirs(config.DATA_DIR, exist_ok=True)
-        saved = 0
-        for f in uploaded:
-            dest = config.DATA_DIR / f.name
-            if not dest.exists():
-                dest.write_bytes(f.getvalue())
-                saved += 1
-        if saved:
-            st.success(f"Saved {saved} new PDF(s). Hit ingest to process them.")
-
-    if st.button("⟳ Ingest new reports", use_container_width=True):
-        with st.spinner("Scanning and embedding PDFs..."):
-            summary = ingest(verbose=False)
-        if summary["documents"] == 0 and summary["skipped"] == 0:
-            st.warning("No PDFs found in data/reports/")
-        elif summary["documents"] == 0:
-            st.info(f"All {summary['skipped']} documents already ingested.")
-        else:
-            st.success(
-                f"Ingested {summary['documents']} doc(s), "
-                f"{summary['chunks']} chunks. "
-                f"Skipped {summary['skipped']} existing."
-            )
-            st.rerun()
 
     st.divider()
 

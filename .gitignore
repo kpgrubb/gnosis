@@ -5,8 +5,7 @@
 # ChromaDB persistence
 db/
 
-# PDFs (user data)
-data/reports/*.pdf
+# PDFs are committed to the repo so Streamlit Cloud can access them
 
 # Python
 __pycache__/
