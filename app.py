@@ -21,7 +21,7 @@ st.set_page_config(
     page_title="GNOSIS",
     page_icon="◉",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 # ── Global theme CSS ─────────────────────────────────────────────────────────
@@ -147,8 +147,8 @@ hr {
 ::-webkit-scrollbar-thumb { background: rgba(0,180,255,0.2); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(0,180,255,0.4); }
 
-/* Hide Streamlit branding */
-#MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
+/* Hide Streamlit branding (keep sidebar toggle visible) */
+footer, [data-testid="stToolbar"] { display: none !important; }
 
 /* Particle iframe — full screen behind content */
 /* Multiple selectors for cross-version Streamlit compatibility */
