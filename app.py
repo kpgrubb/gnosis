@@ -319,6 +319,27 @@ with col2:
                 unsafe_allow_html=True,
             )
 
+# Filters
+col1, col2, col3 = st.columns([1, 3, 1])
+with col2:
+    with st.expander("Filters", expanded=False):
+        fcol1, fcol2 = st.columns(2)
+        with fcol1:
+            st.markdown(
+                "<p style='font-size:0.78rem;color:#667;margin-bottom:4px'>Trust Tier</p>",
+                unsafe_allow_html=True,
+            )
+            tier1 = st.checkbox("Tier 1 — Verified", value=True, key="ft1")
+            tier2 = st.checkbox("Tier 2 — Credible", value=True, key="ft2")
+            tier3 = st.checkbox("Tier 3 — Caveat", value=True, key="ft3")
+        with fcol2:
+            st.markdown(
+                "<p style='font-size:0.78rem;color:#667;margin-bottom:4px'>Date Range</p>",
+                unsafe_allow_html=True,
+            )
+            year_from = st.number_input("From year", min_value=2000, max_value=2030, value=2020, key="yr_from")
+            year_to = st.number_input("To year", min_value=2000, max_value=2030, value=2026, key="yr_to")
+
 # Query input
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
@@ -328,10 +349,20 @@ with col2:
         label_visibility="collapsed",
     )
 
+    # Build filter params
+    selected_tiers = [t for t, checked in [(1, tier1), (2, tier2), (3, tier3)] if checked]
+
     if st.button("⟐  Query Corpus", type="primary", use_container_width=True) and question:
+        if not selected_tiers:
+            st.warning("Select at least one trust tier.")
+            st.stop()
+        if year_from > year_to:
+            st.warning("'From year' must be less than or equal to 'To year'.")
+            st.stop()
         with st.spinner("Retrieving sources and synthesizing answer..."):
             try:
-                result = query(question)
+                result = query(question, trust_tiers=selected_tiers,
+                               year_from=year_from, year_to=year_to)
             except Exception as e:
                 st.error(f"Query failed: {e}")
                 st.stop()

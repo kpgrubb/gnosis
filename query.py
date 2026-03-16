@@ -53,8 +53,35 @@ def _dedupe_sources(metadatas: list[dict]) -> list[dict]:
     return sources
 
 
-def query(question: str, top_k: int = config.TOP_K) -> dict:
-    """Run a RAG query. Returns {"answer": str, "sources": list[dict]}."""
+def _build_where(
+    trust_tiers: list[int] | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+) -> dict | None:
+    """Build a ChromaDB where clause from filter parameters."""
+    clauses = []
+    if trust_tiers and set(trust_tiers) != {1, 2, 3}:
+        clauses.append({"trust_tier": {"$in": trust_tiers}})
+    if year_from:
+        clauses.append({"published_year": {"$gte": year_from}})
+    if year_to:
+        clauses.append({"published_year": {"$lte": year_to}})
+
+    if len(clauses) == 0:
+        return None
+    if len(clauses) == 1:
+        return clauses[0]
+    return {"$and": clauses}
+
+
+def query(
+    question: str,
+    top_k: int = config.TOP_K,
+    trust_tiers: list[int] | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+) -> dict:
+    """Run a RAG query. Returns answer, sources, and raw chunk metadata."""
     # Embed the question
     embed_model = OpenAIEmbedding(
         model_name=config.EMBEDDING_MODEL,
@@ -66,16 +93,20 @@ def query(question: str, top_k: int = config.TOP_K) -> dict:
     client = chromadb.PersistentClient(path=config.CHROMA_DIR)
     collection = client.get_collection(name=config.COLLECTION_NAME)
 
+    where = _build_where(trust_tiers, year_from, year_to)
+
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
+        where=where,
     )
 
     if not results["documents"] or not results["documents"][0]:
         return {
             "answer": "No relevant sources found in the corpus.",
             "sources": [],
+            "chunk_metadatas": [],
         }
 
     # Build context and call GPT-4o
@@ -100,7 +131,11 @@ def query(question: str, top_k: int = config.TOP_K) -> dict:
     answer = response.choices[0].message.content
     sources = _dedupe_sources(results["metadatas"][0])
 
-    return {"answer": answer, "sources": sources}
+    return {
+        "answer": answer,
+        "sources": sources,
+        "chunk_metadatas": results["metadatas"][0],
+    }
 
 
 if __name__ == "__main__":

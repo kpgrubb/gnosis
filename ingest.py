@@ -35,6 +35,14 @@ def file_hash(filepath) -> str:
     return h.hexdigest()
 
 
+def _parse_year(published: str) -> int:
+    """Extract year integer from 'YYYY-QN' or 'YYYY' format. Returns 0 if unparseable."""
+    try:
+        return int(published.split("-")[0])
+    except (ValueError, IndexError):
+        return 0
+
+
 def extract_pages(pdf_path) -> list[dict]:
     """Extract text from each page of a PDF using PyMuPDF."""
     pages = []
@@ -118,6 +126,7 @@ def ingest(verbose: bool = True) -> dict:
                 "trust_tier": trust_tier,
                 "provider": provider,
                 "published": published,
+                "published_year": _parse_year(published),
                 "topic_tags": json.dumps(topic_tags),
                 "file_hash": fhash,
             })
@@ -153,6 +162,16 @@ def ingest(verbose: bool = True) -> dict:
         print(f"  Total in corpus:    {collection.count()} chunks")
 
     return summary
+
+
+def reingest_all(verbose: bool = True) -> dict:
+    """Delete all chunks and re-ingest from scratch."""
+    client = chromadb.PersistentClient(path=config.CHROMA_DIR)
+    try:
+        client.delete_collection(name=config.COLLECTION_NAME)
+    except Exception:
+        pass
+    return ingest(verbose=verbose)
 
 
 if __name__ == "__main__":
