@@ -150,6 +150,10 @@ hr {
 /* Hide Streamlit branding (keep sidebar toggle visible) */
 footer, [data-testid="stToolbar"] { display: none !important; }
 
+/* Prevent sidebar from collapsing */
+[data-testid="stSidebarCollapsedControl"] { display: none !important; }
+[data-testid="stSidebar"] { min-width: 280px !important; }
+
 /* Particle iframe — full screen behind content */
 /* Multiple selectors for cross-version Streamlit compatibility */
 [data-testid="stCustomComponentV1"] iframe,
@@ -352,7 +356,15 @@ with col2:
 # Filters
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
-    with st.expander("Filters", expanded=False):
+    if st.button(
+        f"{'▾' if st.session_state.get('show_filters') else '▸'} Filters",
+        use_container_width=True,
+        key="toggle_filters",
+    ):
+        st.session_state["show_filters"] = not st.session_state.get("show_filters", False)
+        st.rerun()
+
+    if st.session_state.get("show_filters"):
         fcol1, fcol2 = st.columns(2)
         with fcol1:
             st.markdown(
@@ -369,6 +381,10 @@ with col2:
             )
             year_from = st.number_input("From year", min_value=2000, max_value=2030, value=2020, key="yr_from")
             year_to = st.number_input("To year", min_value=2000, max_value=2030, value=2026, key="yr_to")
+    else:
+        tier1 = tier2 = tier3 = True
+        year_from = 2020
+        year_to = 2026
 
 # Mode toggle + Query input
 col1, col2, col3 = st.columns([1, 3, 1])
