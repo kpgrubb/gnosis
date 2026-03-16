@@ -388,6 +388,31 @@ with col2:
             )
             st.markdown(result["answer"])
 
+            # Confidence indicator
+            chunk_metas = result.get("chunk_metadatas", [])
+            if chunk_metas:
+                tiers = [m["trust_tier"] for m in chunk_metas]
+                total = len(tiers)
+                tier3_count = tiers.count(3)
+                if tier3_count > total * 0.5:
+                    conf_color, conf_bg = "#ff1744", "rgba(255,23,68,0.08)"
+                    conf_label, conf_detail = "LOW CONFIDENCE", f"{tier3_count}/{total} sources are Tier 3"
+                elif tier3_count == 0:
+                    conf_color, conf_bg = "#00e676", "rgba(0,230,118,0.08)"
+                    conf_label, conf_detail = "HIGH CONFIDENCE", "All sources are Tier 1-2"
+                else:
+                    conf_color, conf_bg = "#ffab00", "rgba(255,171,0,0.08)"
+                    conf_label, conf_detail = "MODERATE CONFIDENCE", f"{total - tier3_count}/{total} sources are Tier 1-2"
+                st.markdown(
+                    f"<div style='padding:10px 16px;margin:12px 0;border-left:3px solid {conf_color};"
+                    f"background:{conf_bg};border-radius:4px'>"
+                    f"<span style='color:{conf_color};font-weight:600;font-size:0.8rem;"
+                    f"letter-spacing:1px'>{conf_label}</span>"
+                    f"<span style='color:#667;font-size:0.75rem;margin-left:12px'>{conf_detail}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+
             if result["sources"]:
                 st.markdown(
                     "<p style='color:#556;font-size:0.8rem;margin-top:1.5rem;"
