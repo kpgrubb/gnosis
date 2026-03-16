@@ -138,6 +138,91 @@ def query(
     }
 
 
+def discover(
+    question: str,
+    top_k: int = 12,
+    trust_tiers: list[int] | None = None,
+    year_from: int | None = None,
+    year_to: int | None = None,
+    max_reports: int = 6,
+) -> list[dict]:
+    """Discover relevant reports without synthesis. Returns ranked report list."""
+    from collections import defaultdict
+
+    embed_model = OpenAIEmbedding(
+        model_name=config.EMBEDDING_MODEL,
+        api_key=config.OPENAI_API_KEY,
+    )
+    query_embedding = embed_model.get_query_embedding(question)
+
+    client = chromadb.PersistentClient(path=config.CHROMA_DIR)
+    collection = client.get_collection(name=config.COLLECTION_NAME)
+
+    where = _build_where(trust_tiers, year_from, year_to)
+
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=top_k,
+        include=["documents", "metadatas", "distances"],
+        where=where,
+    )
+
+    if not results["documents"] or not results["documents"][0]:
+        return []
+
+    # Group by filename, track distances and best chunk
+    report_data = defaultdict(
+        lambda: {"distances": [], "best_chunk": None, "best_dist": float("inf"), "meta": None}
+    )
+
+    for doc, meta, dist in zip(
+        results["documents"][0], results["metadatas"][0], results["distances"][0]
+    ):
+        fname = meta["filename"]
+        rd = report_data[fname]
+        rd["distances"].append(dist)
+        rd["meta"] = meta
+        if dist < rd["best_dist"]:
+            rd["best_dist"] = dist
+            rd["best_chunk"] = doc
+
+    # Rank by average distance (lower = more similar for cosine)
+    ranked = sorted(
+        report_data.items(),
+        key=lambda x: sum(x[1]["distances"]) / len(x[1]["distances"]),
+    )
+    ranked = ranked[:max_reports]
+
+    # Generate abstracts via GPT-4o-mini
+    llm = OpenAI(api_key=config.OPENAI_API_KEY)
+    reports = []
+    for rank, (fname, data) in enumerate(ranked, 1):
+        abstract_resp = llm.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Write a 2-3 sentence abstract of this document excerpt. Be concise and informative.",
+                },
+                {"role": "user", "content": data["best_chunk"][:2000]},
+            ],
+            temperature=0.3,
+            max_tokens=150,
+        )
+        meta = data["meta"]
+        reports.append({
+            "rank": rank,
+            "filename": fname,
+            "provider": meta.get("provider", "Unknown"),
+            "trust_tier": meta["trust_tier"],
+            "published": meta.get("published", "Unknown"),
+            "topic_tags": json.loads(meta.get("topic_tags", "[]")),
+            "abstract": abstract_resp.choices[0].message.content,
+        })
+
+    return reports
+
+
 if __name__ == "__main__":
     import sys
 

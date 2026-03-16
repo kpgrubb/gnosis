@@ -10,7 +10,7 @@ import config
 from auth import require_auth
 from ingest import ingest
 from particles import PARTICLE_HTML
-from query import query
+from query import query, discover
 
 # ── Page config ──────────────────────────────────────────────────────────────
 
@@ -340,9 +340,12 @@ with col2:
             year_from = st.number_input("From year", min_value=2000, max_value=2030, value=2020, key="yr_from")
             year_to = st.number_input("To year", min_value=2000, max_value=2030, value=2026, key="yr_to")
 
-# Query input
+# Mode toggle + Query input
 col1, col2, col3 = st.columns([1, 3, 1])
 with col2:
+    mode = st.radio("Mode", ["Synthesize", "Discover"], horizontal=True,
+                    key="query_mode", label_visibility="collapsed")
+
     question = st.text_input(
         "Research query",
         placeholder="e.g. What are the top risks to global banking in 2025?",
@@ -352,61 +355,115 @@ with col2:
     # Build filter params
     selected_tiers = [t for t, checked in [(1, tier1), (2, tier2), (3, tier3)] if checked]
 
-    if st.button("⟐  Query Corpus", type="primary", use_container_width=True) and question:
+    btn_label = "⟐  Query Corpus" if mode == "Synthesize" else "⟐  Discover Reports"
+    if st.button(btn_label, type="primary", use_container_width=True) and question:
         if not selected_tiers:
             st.warning("Select at least one trust tier.")
             st.stop()
         if year_from > year_to:
             st.warning("'From year' must be less than or equal to 'To year'.")
             st.stop()
-        with st.spinner("Retrieving sources and synthesizing answer..."):
-            try:
-                result = query(question, trust_tiers=selected_tiers,
-                               year_from=year_from, year_to=year_to)
-            except Exception as e:
-                st.error(f"Query failed: {e}")
-                st.stop()
 
-        st.session_state["history"].insert(0, {
-            "question": question,
-            "answer": result["answer"],
-            "sources": result["sources"],
-            "timestamp": datetime.now().isoformat(),
-        })
+        if mode == "Synthesize":
+            # ── Synthesize mode ──────────────────────────────────────
+            with st.spinner("Retrieving sources and synthesizing answer..."):
+                try:
+                    result = query(question, trust_tiers=selected_tiers,
+                                   year_from=year_from, year_to=year_to)
+                except Exception as e:
+                    st.error(f"Query failed: {e}")
+                    st.stop()
 
-        st.markdown("---")
-        st.markdown(
-            "<h3 style='font-size:1.1rem;margin-bottom:0.5rem'>Analysis</h3>",
-            unsafe_allow_html=True,
-        )
-        st.markdown(result["answer"])
+            st.session_state["history"].insert(0, {
+                "question": question,
+                "answer": result["answer"],
+                "sources": result["sources"],
+                "timestamp": datetime.now().isoformat(),
+            })
 
-        if result["sources"]:
+            st.markdown("---")
             st.markdown(
-                "<p style='color:#556;font-size:0.8rem;margin-top:1.5rem;"
-                "text-transform:uppercase;letter-spacing:1px'>Sources Used</p>",
+                "<h3 style='font-size:1.1rem;margin-bottom:0.5rem'>Analysis</h3>",
                 unsafe_allow_html=True,
             )
-            for src in result["sources"]:
-                tier = src["trust_tier"]
-                if tier == 1:
-                    color, label = "#00e676", "TIER 1 — VERIFIED"
-                elif tier == 2:
-                    color, label = "#ffab00", "TIER 2 — CREDIBLE"
-                else:
-                    color, label = "#ff1744", "TIER 3 — CAVEAT"
+            st.markdown(result["answer"])
 
-                tags = ", ".join(src["topic_tags"]) if src["topic_tags"] else "—"
+            if result["sources"]:
                 st.markdown(
-                    f"<div style='padding:10px 14px;margin:8px 0;"
-                    f"border-left:3px solid {color};"
-                    f"background:rgba(255,255,255,0.02);border-radius:4px'>"
-                    f"<strong style='color:#e0e6ed'>{src['filename']}</strong>"
-                    f" &nbsp;<span style='font-size:0.7rem;padding:2px 8px;"
-                    f"background:{color}20;color:{color};border-radius:10px;"
-                    f"font-weight:600;letter-spacing:0.5px'>{label}</span><br/>"
-                    f"<span style='color:#667;font-size:0.8rem'>"
-                    f"{src['provider']} · {src['published']} · {tags}</span>"
-                    f"</div>",
+                    "<p style='color:#556;font-size:0.8rem;margin-top:1.5rem;"
+                    "text-transform:uppercase;letter-spacing:1px'>Sources Used</p>",
                     unsafe_allow_html=True,
                 )
+                for src in result["sources"]:
+                    tier = src["trust_tier"]
+                    if tier == 1:
+                        color, label = "#00e676", "TIER 1 — VERIFIED"
+                    elif tier == 2:
+                        color, label = "#ffab00", "TIER 2 — CREDIBLE"
+                    else:
+                        color, label = "#ff1744", "TIER 3 — CAVEAT"
+
+                    tags = ", ".join(src["topic_tags"]) if src["topic_tags"] else "—"
+                    st.markdown(
+                        f"<div style='padding:10px 14px;margin:8px 0;"
+                        f"border-left:3px solid {color};"
+                        f"background:rgba(255,255,255,0.02);border-radius:4px'>"
+                        f"<strong style='color:#e0e6ed'>{src['filename']}</strong>"
+                        f" &nbsp;<span style='font-size:0.7rem;padding:2px 8px;"
+                        f"background:{color}20;color:{color};border-radius:10px;"
+                        f"font-weight:600;letter-spacing:0.5px'>{label}</span><br/>"
+                        f"<span style='color:#667;font-size:0.8rem'>"
+                        f"{src['provider']} · {src['published']} · {tags}</span>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+        else:
+            # ── Discover mode ────────────────────────────────────────
+            with st.spinner("Discovering relevant reports..."):
+                try:
+                    reports = discover(question, trust_tiers=selected_tiers,
+                                       year_from=year_from, year_to=year_to)
+                except Exception as e:
+                    st.error(f"Discovery failed: {e}")
+                    st.stop()
+
+            if not reports:
+                st.info("No matching reports found.")
+            else:
+                st.markdown("---")
+                st.markdown(
+                    "<h3 style='font-size:1.1rem;margin-bottom:0.5rem'>Discovered Reports</h3>",
+                    unsafe_allow_html=True,
+                )
+                for rpt in reports:
+                    tier = rpt["trust_tier"]
+                    color = {1: "#00e676", 2: "#ffab00"}.get(tier, "#ff1744")
+                    badge = {1: "TIER 1", 2: "TIER 2"}.get(tier, "TIER 3")
+                    tags = ", ".join(rpt["topic_tags"]) if rpt["topic_tags"] else ""
+                    st.markdown(
+                        f"<div style='padding:14px;margin:10px 0;border-left:3px solid {color};"
+                        f"background:rgba(255,255,255,0.02);border-radius:4px'>"
+                        f"<span style='color:#556;font-size:0.7rem'>#{rpt['rank']}</span> "
+                        f"<strong style='color:#e0e6ed'>{rpt['filename']}</strong>"
+                        f" &nbsp;<span style='font-size:0.65rem;padding:2px 6px;"
+                        f"background:{color}20;color:{color};border-radius:10px;"
+                        f"font-weight:600'>{badge}</span><br/>"
+                        f"<span style='color:#667;font-size:0.78rem'>"
+                        f"{rpt['provider']} &middot; {rpt['published']}"
+                        f"{(' &middot; ' + tags) if tags else ''}</span><br/>"
+                        f"<span style='color:#aab;font-size:0.85rem;margin-top:6px;"
+                        f"display:block'>{rpt['abstract']}</span></div>",
+                        unsafe_allow_html=True,
+                    )
+                    # Download button
+                    pdf_path = config.DATA_DIR / rpt["filename"]
+                    if pdf_path.exists():
+                        with open(pdf_path, "rb") as f:
+                            st.download_button(
+                                f"Download {rpt['filename']}",
+                                f.read(),
+                                file_name=rpt["filename"],
+                                mime="application/pdf",
+                                key=f"dl_{rpt['rank']}",
+                            )
