@@ -35,3 +35,10 @@ COLLECTION_NAME = "gnosis_reports"
 
 # Admin
 ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
+
+# Discovery
+DISCOVERY_DIR = PROJECT_ROOT / "discovery"
+SEEN_PATH = DISCOVERY_DIR / "seen.json"
+LLM_MODEL_MINI = "gpt-4o-mini"
+DISCOVERY_STALE_DAYS = 7
+DISCOVERY_MAX_NEW = 50

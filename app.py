@@ -14,6 +14,7 @@ from auth import require_auth
 from ingest import ingest, ingest_single, remove_document, reingest_all
 from particles import PARTICLE_HTML
 from query import query, discover
+from discovery.runner import run_discovery, is_stale, dismiss_report, load_seen
 
 # ── Page config ──────────────────────────────────────────────────────────────
 
@@ -545,6 +546,89 @@ with col2:
                                 mime="application/pdf",
                                 key=f"dl_{rpt['rank']}",
                             )
+
+# ── Report Discovery ────────────────────────────────────────────────────────
+
+if st.session_state.get("admin_unlocked"):
+    st.markdown("---")
+    st.markdown(
+        "<h2 style='text-align:center;font-size:1.4rem;margin-top:2rem'>Report Discovery</h2>",
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        # Last run indicator
+        _seen_data = load_seen()
+        _last_run = _seen_data.get("last_run")
+        if _last_run:
+            st.caption(f"Last scan: {_last_run[:16].replace('T', ' ')}")
+        else:
+            st.caption("Never scanned.")
+
+        if is_stale():
+            st.warning("Discovery data is stale (>7 days). Click below to refresh.")
+
+        # Auto-scan on first visit if stale
+        if is_stale() and not st.session_state.get("discovery_auto_scanned"):
+            with st.spinner("Auto-scanning trusted providers..."):
+                _pending = run_discovery()
+            st.session_state["discovery_results"] = _pending
+            st.session_state["discovery_auto_scanned"] = True
+            st.rerun()
+
+        if st.button("Scan for New Reports", use_container_width=True, key="scan_btn"):
+            with st.spinner("Scanning trusted providers..."):
+                _pending = run_discovery()
+            st.session_state["discovery_results"] = _pending
+            st.rerun()
+
+        # Display pending reports
+        _pending = st.session_state.get("discovery_results") or load_seen().get("pending", [])
+
+        if not _pending:
+            st.info("No new reports discovered. Check back later.")
+        else:
+            st.markdown(
+                f"<p style='color:#667;font-size:0.85rem;margin:8px 0'>"
+                f"<strong style='color:#00d4ff'>{len(_pending)}</strong> reports awaiting review</p>",
+                unsafe_allow_html=True,
+            )
+            for _i, _rpt in enumerate(_pending):
+                _tier = _rpt.get("trust_tier", 3)
+                _color = {1: "#00e676", 2: "#ffab00"}.get(_tier, "#ff1744")
+                _badge = {1: "TIER 1", 2: "TIER 2"}.get(_tier, "TIER 3")
+                _tags = ", ".join(_rpt.get("topic_tags", []))
+                st.markdown(
+                    f"<div style='padding:14px;margin:10px 0;border-left:3px solid {_color};"
+                    f"background:rgba(0,180,255,0.04);border-radius:4px'>"
+                    f"<strong style='color:#e0e6ed'>{_rpt['title']}</strong>"
+                    f" &nbsp;<span style='font-size:0.65rem;padding:2px 6px;"
+                    f"background:{_color}20;color:{_color};border-radius:10px;"
+                    f"font-weight:600'>{_badge}</span><br/>"
+                    f"<span style='color:#667;font-size:0.78rem'>"
+                    f"{_rpt.get('provider', '—')} &middot; {_rpt.get('published', '—')}</span><br/>"
+                    f"<span style='color:#aab;font-size:0.85rem;margin-top:4px;"
+                    f"display:block'>{_rpt.get('abstract', '')}</span>"
+                    f"{'<br/><span style=\"color:#445;font-size:0.7rem\">Tags: ' + _tags + '</span>' if _tags else ''}"
+                    f"</div>",
+                    unsafe_allow_html=True,
+                )
+                _bcol1, _bcol2 = st.columns(2)
+                with _bcol1:
+                    st.markdown(
+                        f"<a href='{_rpt['url']}' target='_blank' style='color:#00d4ff;"
+                        f"font-size:0.8rem;text-decoration:none'>Open Report Page ↗</a>",
+                        unsafe_allow_html=True,
+                    )
+                with _bcol2:
+                    if st.button("Dismiss", key=f"dismiss_{_i}"):
+                        dismiss_report(_rpt["url"])
+                        # Update session state
+                        st.session_state["discovery_results"] = [
+                            r for r in _pending if r.get("url") != _rpt["url"]
+                        ]
+                        st.rerun()
 
 # ── Admin Panel ─────────────────────────────────────────────────────────────
 

@@ -5,6 +5,9 @@
 # ChromaDB persistence
 db/
 
+# Discovery runtime state
+discovery/seen.json
+
 # PDFs are committed to the repo so Streamlit Cloud can access them
 
 # Python
