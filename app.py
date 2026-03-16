@@ -147,7 +147,11 @@ hr {
 #MainMenu, footer, [data-testid="stToolbar"] { display: none !important; }
 
 /* Particle iframe — full screen behind content */
-iframe[title="streamlit_components.v1.html"] {
+/* Multiple selectors for cross-version Streamlit compatibility */
+[data-testid="stCustomComponentV1"] iframe,
+[data-testid="stHtml"] iframe,
+iframe[title*="components.v1.html"],
+iframe[title*="streamlit_components"] {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
@@ -157,9 +161,23 @@ iframe[title="streamlit_components.v1.html"] {
     pointer-events: none !important;
     border: none !important;
 }
+/* Hide the 1px wrapper so it doesn't take layout space */
+[data-testid="stCustomComponentV1"],
+[data-testid="stHtml"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: visible !important;
+    z-index: 0 !important;
+    pointer-events: none !important;
+}
 
 /* Ensure main content sits above the particle iframe */
-[data-testid="stAppViewContainer"] > section > div {
+[data-testid="stMain"],
+[data-testid="stAppViewContainer"] > section > div,
+[data-testid="stSidebar"] {
     position: relative;
     z-index: 1;
 }
