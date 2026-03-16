@@ -164,6 +164,87 @@ def ingest(verbose: bool = True) -> dict:
     return summary
 
 
+def ingest_single(pdf_path, metadata_entry: dict, verbose: bool = True) -> int:
+    """Ingest a single PDF with the given metadata. Returns number of chunks created."""
+    client = chromadb.PersistentClient(path=config.CHROMA_DIR)
+    collection = client.get_or_create_collection(
+        name=config.COLLECTION_NAME,
+        metadata={"hnsw:space": "cosine"},
+    )
+
+    embed_model = OpenAIEmbedding(
+        model_name=config.EMBEDDING_MODEL,
+        api_key=config.OPENAI_API_KEY,
+    )
+
+    pages = extract_pages(pdf_path)
+    if not pages:
+        if verbose:
+            print(f"  Warning: no text extracted from {pdf_path.name}")
+        return 0
+
+    fhash = file_hash(pdf_path)
+    fname = pdf_path.name
+    trust_tier = metadata_entry.get("trust_tier", 3)
+    provider = metadata_entry.get("provider", "Unknown")
+    published = metadata_entry.get("published", "Unknown")
+    topic_tags = metadata_entry.get("topic_tags", [])
+
+    ids = []
+    documents = []
+    metadatas = []
+
+    for page in pages:
+        chunk_id = f"{fhash}_page_{page['page']}"
+        ids.append(chunk_id)
+        documents.append(page["text"])
+        metadatas.append({
+            "filename": fname,
+            "page": page["page"],
+            "trust_tier": trust_tier,
+            "provider": provider,
+            "published": published,
+            "published_year": _parse_year(published),
+            "topic_tags": json.dumps(topic_tags),
+            "file_hash": fhash,
+        })
+
+    texts = [p["text"] for p in pages]
+    embeddings = embed_model.get_text_embedding_batch(texts)
+
+    collection.add(
+        ids=ids,
+        documents=documents,
+        embeddings=embeddings,
+        metadatas=metadatas,
+    )
+
+    if verbose:
+        print(f"  Ingested {fname}: {len(pages)} chunks")
+
+    return len(pages)
+
+
+def remove_document(filename: str, verbose: bool = True) -> int:
+    """Remove all ChromaDB chunks for a given filename. Returns number of chunks removed."""
+    client = chromadb.PersistentClient(path=config.CHROMA_DIR)
+    try:
+        collection = client.get_collection(name=config.COLLECTION_NAME)
+    except Exception:
+        return 0
+
+    # Find all chunk IDs for this filename
+    results = collection.get(where={"filename": filename}, include=[])
+    chunk_ids = results["ids"]
+
+    if chunk_ids:
+        collection.delete(ids=chunk_ids)
+        if verbose:
+            print(f"  Removed {len(chunk_ids)} chunks for {filename}")
+
+    return len(chunk_ids)
+
+
 def reingest_all(verbose: bool = True) -> dict:
     """Delete all chunks and re-ingest from scratch."""
     client = chromadb.PersistentClient(path=config.CHROMA_DIR)

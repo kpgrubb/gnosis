@@ -2,13 +2,16 @@
 
 import json
 from datetime import datetime
+from pathlib import Path
+
+import bcrypt
 import streamlit as st
 import streamlit.components.v1 as components
 import chromadb
 
 import config
 from auth import require_auth
-from ingest import ingest
+from ingest import ingest, ingest_single, remove_document, reingest_all
 from particles import PARTICLE_HTML
 from query import query, discover
 
@@ -262,9 +265,36 @@ with st.sidebar:
 
     st.divider()
 
+    # Admin gate
+    if config.ADMIN_PASSWORD_HASH:
+        st.markdown(
+            "<p style='font-size:0.75rem;color:#556;text-transform:uppercase;"
+            "letter-spacing:1px'>Admin</p>",
+            unsafe_allow_html=True,
+        )
+        if st.session_state.get("admin_unlocked"):
+            st.success("Admin unlocked", icon="🔓")
+            if st.button("Lock Admin", use_container_width=True):
+                st.session_state["admin_unlocked"] = False
+                st.rerun()
+        else:
+            admin_pw = st.text_input("Admin password", type="password", key="admin_pw_input")
+            if st.button("Unlock", use_container_width=True, key="admin_unlock_btn"):
+                if admin_pw and bcrypt.checkpw(
+                    admin_pw.encode("utf-8"),
+                    config.ADMIN_PASSWORD_HASH.encode("utf-8"),
+                ):
+                    st.session_state["admin_unlocked"] = True
+                    st.rerun()
+                else:
+                    st.error("Wrong password.")
+
+        st.divider()
+
     if st.button("Logout", use_container_width=True):
         st.session_state["authenticated"] = False
         st.session_state["username"] = None
+        st.session_state["admin_unlocked"] = False
         st.rerun()
 
 # ── Main area ────────────────────────────────────────────────────────────────
@@ -492,3 +522,120 @@ with col2:
                                 mime="application/pdf",
                                 key=f"dl_{rpt['rank']}",
                             )
+
+# ── Admin Panel ─────────────────────────────────────────────────────────────
+
+if st.session_state.get("admin_unlocked"):
+    st.markdown("---")
+    st.markdown(
+        "<h2 style='text-align:center;font-size:1.4rem;margin-top:2rem'>Admin Panel</h2>",
+        unsafe_allow_html=True,
+    )
+
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        # ── Corpus table ──────────────────────────────────────────
+        st.markdown("### Corpus")
+        if _meta_list:
+            table_data = [
+                {
+                    "Filename": r["filename"],
+                    "Provider": r.get("provider", "—"),
+                    "Tier": r.get("trust_tier", 3),
+                    "Published": r.get("published", "—"),
+                    "Tags": ", ".join(r.get("topic_tags", [])),
+                }
+                for r in _meta_list
+            ]
+            st.dataframe(table_data, use_container_width=True, hide_index=True)
+        else:
+            st.info("No reports in corpus.")
+
+        st.markdown("---")
+
+        # ── Add Report ────────────────────────────────────────────
+        st.markdown("### Add Report")
+        with st.form("add_report_form", clear_on_submit=True):
+            uploaded_file = st.file_uploader("Upload PDF", type=["pdf"])
+            ar_provider = st.text_input("Provider", placeholder="e.g. McKinsey & Company")
+            ar_tier = st.selectbox("Trust Tier", [1, 2, 3], index=1)
+            ar_published = st.text_input("Published", placeholder="e.g. 2025-Q1")
+            ar_tags = st.text_input("Topic tags (comma-separated)", placeholder="e.g. banking, AI, strategy")
+            add_submitted = st.form_submit_button("Add Report", use_container_width=True)
+
+        if add_submitted and uploaded_file:
+            # Save PDF to data/reports/
+            save_path = config.DATA_DIR / uploaded_file.name
+            save_path.write_bytes(uploaded_file.getvalue())
+
+            # Build metadata entry
+            tag_list = [t.strip() for t in ar_tags.split(",") if t.strip()] if ar_tags else []
+            new_entry = {
+                "filename": uploaded_file.name,
+                "provider": ar_provider or "Unknown",
+                "trust_tier": ar_tier,
+                "published": ar_published or "Unknown",
+                "topic_tags": tag_list,
+            }
+
+            # Append to metadata.json
+            meta_list = []
+            if config.METADATA_PATH.exists():
+                with open(config.METADATA_PATH, "r", encoding="utf-8") as f:
+                    meta_list = json.load(f)
+            meta_list.append(new_entry)
+            with open(config.METADATA_PATH, "w", encoding="utf-8") as f:
+                json.dump(meta_list, f, indent=2)
+
+            # Ingest into ChromaDB
+            with st.spinner(f"Ingesting {uploaded_file.name}..."):
+                chunks = ingest_single(save_path, new_entry, verbose=False)
+
+            st.success(f"Added {uploaded_file.name} ({chunks} chunks)")
+            st.rerun()
+        elif add_submitted and not uploaded_file:
+            st.warning("Please upload a PDF file.")
+
+        st.markdown("---")
+
+        # ── Remove Report ─────────────────────────────────────────
+        st.markdown("### Remove Report")
+        if _meta_list:
+            filenames = [r["filename"] for r in _meta_list]
+            remove_file = st.selectbox("Select report to remove", filenames, key="remove_select")
+            if st.button("Remove Report", type="primary", key="remove_btn"):
+                # Remove from ChromaDB
+                with st.spinner(f"Removing {remove_file}..."):
+                    removed = remove_document(remove_file, verbose=False)
+
+                # Remove PDF file
+                pdf_to_remove = config.DATA_DIR / remove_file
+                if pdf_to_remove.exists():
+                    pdf_to_remove.unlink()
+
+                # Update metadata.json
+                meta_list = []
+                if config.METADATA_PATH.exists():
+                    with open(config.METADATA_PATH, "r", encoding="utf-8") as f:
+                        meta_list = json.load(f)
+                meta_list = [m for m in meta_list if m["filename"] != remove_file]
+                with open(config.METADATA_PATH, "w", encoding="utf-8") as f:
+                    json.dump(meta_list, f, indent=2)
+
+                st.success(f"Removed {remove_file} ({removed} chunks deleted)")
+                st.rerun()
+        else:
+            st.info("No reports to remove.")
+
+        st.markdown("---")
+
+        # ── Re-ingest All ─────────────────────────────────────────
+        st.markdown("### Re-ingest Corpus")
+        st.caption("Deletes all chunks and re-ingests every PDF from scratch. Use after metadata changes.")
+        if st.button("Re-ingest All", type="primary", key="reingest_btn"):
+            with st.spinner("Re-ingesting entire corpus..."):
+                summary = reingest_all(verbose=False)
+            st.success(
+                f"Re-ingestion complete: {summary['documents']} documents, "
+                f"{summary['chunks']} chunks"
+            )

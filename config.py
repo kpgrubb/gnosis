@@ -10,6 +10,8 @@ try:
     import streamlit as st
     if "OPENAI_API_KEY" in st.secrets:
         os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+    if "ADMIN_PASSWORD_HASH" in st.secrets:
+        os.environ["ADMIN_PASSWORD_HASH"] = st.secrets["ADMIN_PASSWORD_HASH"]
 except Exception:
     pass
 
@@ -30,3 +32,6 @@ TOP_K = 8
 
 # ChromaDB
 COLLECTION_NAME = "gnosis_reports"
+
+# Admin
+ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH", "")
