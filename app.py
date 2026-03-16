@@ -1,6 +1,7 @@
 """Streamlit UI for GNOSIS research intelligence system."""
 
 import json
+from datetime import datetime
 import streamlit as st
 import streamlit.components.v1 as components
 import chromadb
@@ -201,6 +202,9 @@ if "ingested" not in st.session_state:
         ingest(verbose=False)
     st.session_state["ingested"] = True
 
+if "history" not in st.session_state:
+    st.session_state["history"] = []
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -235,6 +239,26 @@ with st.sidebar:
     except Exception:
         st.metric("Documents in corpus", 0)
         st.metric("Total chunks", 0)
+
+    st.divider()
+
+    # Session history
+    st.markdown(
+        "<p style='font-size:0.75rem;color:#556;text-transform:uppercase;"
+        "letter-spacing:1px'>Session History</p>",
+        unsafe_allow_html=True,
+    )
+    if st.session_state["history"]:
+        for idx, entry in enumerate(st.session_state["history"]):
+            q_label = entry["question"][:50] + ("..." if len(entry["question"]) > 50 else "")
+            with st.expander(f"Q: {q_label}", expanded=False):
+                st.markdown(entry["answer"])
+                if entry["sources"]:
+                    st.caption(
+                        "Sources: " + ", ".join(s["filename"] for s in entry["sources"])
+                    )
+    else:
+        st.caption("No queries yet this session.")
 
     st.divider()
 
@@ -311,6 +335,13 @@ with col2:
             except Exception as e:
                 st.error(f"Query failed: {e}")
                 st.stop()
+
+        st.session_state["history"].insert(0, {
+            "question": question,
+            "answer": result["answer"],
+            "sources": result["sources"],
+            "timestamp": datetime.now().isoformat(),
+        })
 
         st.markdown("---")
         st.markdown(
