@@ -150,9 +150,16 @@ hr {
 /* Hide Streamlit branding (keep sidebar toggle visible) */
 footer, [data-testid="stToolbar"] { display: none !important; }
 
-/* Prevent sidebar from collapsing */
+/* Force sidebar always visible */
+[data-testid="stSidebar"] {
+    min-width: 280px !important;
+    width: 280px !important;
+    transform: none !important;
+    visibility: visible !important;
+    position: relative !important;
+}
 [data-testid="stSidebarCollapsedControl"] { display: none !important; }
-[data-testid="stSidebar"] { min-width: 280px !important; }
+section[data-testid="stSidebar"] > div { overflow-y: auto !important; }
 
 /* Particle iframe — full screen behind content */
 /* Multiple selectors for cross-version Streamlit compatibility */
